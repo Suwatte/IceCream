@@ -117,7 +117,15 @@ extension SyncObject: Syncable {
                 // Not found in local realm database
                 return
             }
-            CreamAsset.deleteCreamAssetFile(with: recordID.recordName)
+            
+            let asset = realm
+                .objects(CreamAsset.self)
+                .where({ $0.key == recordID.recordName })
+                .first
+            if let asset {
+                CreamAsset.deleteCreamAssetFile(key: asset.key, folder: asset.folder)
+            }
+            
             realm.beginWrite()
             realm.delete(object)
             if let token = self.notificationToken {

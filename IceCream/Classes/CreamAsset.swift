@@ -18,14 +18,16 @@ import CloudKit
 /// We choose the latter, that's storing it directly on the file system, storing paths to these files in the Realm.
 /// So this is the deal.
 public class CreamAsset: Object {
-    @Persisted private var uniqueFileName = ""
+    @Persisted(indexed: true) var folder = "default"
+    @Persisted(indexed: true) var key = "default"
     override public static func ignoredProperties() -> [String] {
         return ["filePath"]
     }
 
-    private convenience init(objectID: String, propName: String) {
+    private convenience init(folder: String, key: String) {
         self.init()
-        self.uniqueFileName = "\(objectID)_\(propName)"
+        self.folder = folder
+        self.key = key
     }
     
     /// Use this method to fetch the underlying data of the CreamAsset
@@ -35,7 +37,7 @@ public class CreamAsset: Object {
 
     /// Where the asset locates in the file system
     public var filePath: URL {
-        return CreamAsset.creamAssetDefaultURL().appendingPathComponent(uniqueFileName)
+        return CreamAsset.creamAssetFolder(for: folder).appendingPathComponent(key)
     }
 
     /// Save the given data to local file system
@@ -43,8 +45,10 @@ public class CreamAsset: Object {
     ///   - data: The data to save
     ///   - path:
     ///   - shouldOverwrite: Whether should overwrite current file existed at path or not.
-    private static func save(data: Data, to path: String, shouldOverwrite: Bool) throws {
-        let url = CreamAsset.creamAssetDefaultURL().appendingPathComponent(path)
+    private static func save(data: Data, for key: String, to folder: String, shouldOverwrite: Bool) throws {
+        let url = CreamAsset
+            .creamAssetFolder(for: folder)
+            .appendingPathComponent(key)
         guard shouldOverwrite || !FileManager.default.fileExists(atPath: url.path) else { return }
         try data.write(to: url)
     }
@@ -68,7 +72,7 @@ public class CreamAsset: Object {
     static func parse(from propName: String, record: CKRecord, asset: CKAsset) -> CreamAsset? {
         guard let url = asset.fileURL else { return nil }
         return CreamAsset.create(objectID: record.recordID.recordName,
-                                 propName: propName,
+                                 folder: propName,
                                  url: url,
                                  shouldOverwrite: true)
     }
@@ -83,11 +87,10 @@ public class CreamAsset: Object {
     ///   - data: The file data
     ///   - shouldOverwrite: Whether to try and save the file even if an existing file exists for the same object ID.
     /// - Returns: A CreamAsset if it was successful
-    public static func create(objectID: String, propName: String, data: Data, shouldOverwrite: Bool = true) -> CreamAsset? {
-        let creamAsset = CreamAsset(objectID: objectID,
-                                    propName: propName)
+    public static func create(objectID: String, folder: String, data: Data, shouldOverwrite: Bool = true) -> CreamAsset? {
+        let creamAsset = CreamAsset(folder: folder, key: objectID)
         do {
-            try save(data: data, to: creamAsset.uniqueFileName, shouldOverwrite: shouldOverwrite)
+            try save(data: data, for: objectID, to: folder, shouldOverwrite: shouldOverwrite)
             return creamAsset
         } catch {
             // Os.log error here
@@ -103,9 +106,9 @@ public class CreamAsset: Object {
     ///   - data: The file data
     ///   - shouldOverwrite: Whether to try and save the file even if an existing file exists for the same object.
     /// - Returns: A CreamAsset if it was successful
-    public static func create(object: CKRecordConvertible, propName: String, data: Data, shouldOverwrite: Bool = true) -> CreamAsset? {
+    public static func create(object: CKRecordConvertible, folder: String, data: Data, shouldOverwrite: Bool = true) -> CreamAsset? {
         return create(objectID: object.recordID.recordName,
-                      propName: propName,
+                      folder: folder,
                       data: data,
                       shouldOverwrite: shouldOverwrite)
     }
@@ -118,9 +121,9 @@ public class CreamAsset: Object {
     ///   - url: The URL where the file located
     ///   - shouldOverwrite: Whether to try and save the file even if an existing file exists for the same object.
     /// - Returns: A CreamAsset if it was successful
-    public static func create(object: CKRecordConvertible, propName: String, url: URL, shouldOverwrite: Bool = true) -> CreamAsset? {
+    public static func create(object: CKRecordConvertible, folder: String, url: URL, shouldOverwrite: Bool = true) -> CreamAsset? {
         return create(objectID: object.recordID.recordName,
-                      propName: propName,
+                      folder: folder,
                       url: url,
                       shouldOverwrite: shouldOverwrite)
     }
@@ -133,8 +136,8 @@ public class CreamAsset: Object {
     ///   - url: The location where asset locates
     ///   - shouldOverwrite: Whether to try and save the file even if an existing file exists for the same object.
     /// - Returns: The CreamAsset if creates successful
-    public static func create(objectID: String, propName: String, url: URL, shouldOverwrite: Bool = true) -> CreamAsset? {
-        let creamAsset = CreamAsset(objectID: objectID, propName: propName)
+    public static func create(objectID: String, folder: String, url: URL, shouldOverwrite: Bool = true) -> CreamAsset? {
+        let creamAsset = CreamAsset(folder: folder, key: objectID)
         if shouldOverwrite {
             do {
                 try FileManager.default.removeItem(at: creamAsset.filePath)
@@ -159,7 +162,7 @@ extension CreamAsset {
     /// xxx/Document/CreamAsset/
     public static func creamAssetDefaultURL() -> URL {
         let documentDir = try! FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
-        let commonAssetPath = documentDir.appendingPathComponent(className())
+        let commonAssetPath = documentDir.appendingPathComponent("assets")
         if !FileManager.default.fileExists(atPath: commonAssetPath.path) {
             do {
                 try FileManager.default.createDirectory(atPath: commonAssetPath.path, withIntermediateDirectories: false, attributes: nil)
@@ -179,23 +182,32 @@ extension CreamAsset {
         }
         return [String]()
     }
-
-    /// Execute deletions
-    private static func excecuteDeletions(in filesNames: [String]) {
-        for fileName in filesNames {
-            let absolutePath = CreamAsset.creamAssetDefaultURL().appendingPathComponent(fileName).path
+    
+    public static func creamAssetFolder(for folder: String) -> URL {
+        let base = CreamAsset.creamAssetDefaultURL()
+        let url = base.appendingPathComponent(folder, isDirectory: true)
+        if !FileManager.default.fileExists(atPath: url.path) {
             do {
-                try FileManager.default.removeItem(atPath: absolutePath)
+                try FileManager.default.createDirectory(atPath: url.path,
+                                                        withIntermediateDirectories: true,
+                                                        attributes: nil)
             } catch {
-                /// Log: remove item failed at given path
+                /// Log: create directory failed
             }
         }
+        
+        return url
     }
 
+
     /// When delete an object. We need to delete related CreamAsset files
-    public static func deleteCreamAssetFile(with id: String) {
-        let needToDeleteCacheFiles = creamAssetFilesPaths().filter { $0.contains(id) }
-        excecuteDeletions(in: needToDeleteCacheFiles)
+    public static func deleteCreamAssetFile(key: String, folder: String) {
+        let url = creamAssetFolder(for: folder).appendingPathComponent(key)
+        do {
+            try FileManager.default.removeItem(at: url)
+        } catch {
+            /// Log: remove item failed at given path
+        }
     }
 
 }
