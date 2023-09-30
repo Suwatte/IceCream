@@ -109,7 +109,7 @@ final class PrivateDatabaseManager: DatabaseManager {
             guard error == nil else { return }
             self.subscriptionIsLocallyCached = true
         }
-        createOp.qualityOfService = .utility
+        createOp.qualityOfService = .background
         database.add(createOp)
         #endif
     }

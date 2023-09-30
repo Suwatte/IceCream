@@ -107,7 +107,7 @@ final class PublicDatabaseManager: DatabaseManager {
         createOp.modifySubscriptionsCompletionBlock = { _, _, _ in
             
         }
-        createOp.qualityOfService = .utility
+        createOp.qualityOfService = .background
         database.add(createOp)
         #endif
     }
