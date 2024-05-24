@@ -14,7 +14,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/realm/realm-swift",
-            from: "10.43.0"
+            from: "10.50.1"
         )
     ],
     targets: [
@@ -22,7 +22,6 @@ let package = Package(
             name: "IceCream",
             dependencies: [
                 .product(name: "RealmSwift", package: "realm-swift"),
-                .product(name: "Realm", package: "realm-swift")
             ],
             path: "IceCream",
             sources: ["Classes"]
