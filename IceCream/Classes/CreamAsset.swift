@@ -18,8 +18,8 @@ import CloudKit
 /// We choose the latter, that's storing it directly on the file system, storing paths to these files in the Realm.
 /// So this is the deal.
 public class CreamAsset: Object {
-    @Persisted(indexed: true) var folder = "default"
-    @Persisted(indexed: true) var key = "default"
+    @Persisted(indexed: true) var folder: String = "default"
+    @Persisted(indexed: true) var key: String = "default"
     override public static func ignoredProperties() -> [String] {
         return ["filePath"]
     }
