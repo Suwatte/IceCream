@@ -29,6 +29,14 @@ public class CreamAsset: Object {
         self.folder = folder
         self.key = key
     }
+
+    public func getFolder() -> String {
+        return folder
+    }
+
+    public func getKey() -> String {
+        return key
+    }
     
     /// Use this method to fetch the underlying data of the CreamAsset
     public func storedData() -> Data? {
